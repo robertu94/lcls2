@@ -1,3 +1,4 @@
+import libpressio
 import numpy as np
 from psana.detector.detector_impl import hiddenmethod, DetectorImpl
 from amitypes import Array1d, Array2d, Array3d
@@ -376,3 +377,91 @@ class sfx_raw_1_2_3(DetectorImpl):
         return segs[0].atot
 
 
+
+class libpressio_raw_1_2_3(DetectorImpl):
+    """Test detector produced by dgrampy"""
+    def __init__(self, *args):
+        super(libpressio_raw_1_2_3, self).__init__(*args)
+
+    def compressed(self, evt) -> Array1d:
+        segs = self._segments(evt)
+        return segs[0].compressed
+
+    def calib(self, evt) -> Array3d:
+        segs = self._segments(evt)
+        compressed =  segs[0].compressed
+        comp = self._make_compressor(self.npeaks(evt), self.row(evt), self.col(evt))
+        output = np.zeros(self.shape(evt), dtype=np.float32)
+        print(output.shape)
+        output = comp.decode(self.compressed(evt), output)
+        return output
+
+        #add decompression here
+        return segs[0].calib
+
+    def photon_energy(self, evt):
+        segs = self._segments(evt)
+        return segs[0].photon_energy
+    
+    ## peak finder
+    def npeaks(self,evt):
+        segs = self._segments(evt)
+        return segs[0].npeaks
+    def seg(self,evt):
+        segs = self._segments(evt)
+        return segs[0].seg
+    def row(self,evt):
+        segs = self._segments(evt)
+        return segs[0].row
+    def col(self,evt):
+        segs = self._segments(evt)
+        return segs[0].col
+    def shape(self,evt):
+        segs = self._segments(evt)
+        return segs[0].shape
+
+    @staticmethod
+    def _make_compressor(n_peaks, rows, cols):
+        peaks = np.zeros((n_peaks, 3), np.uint16)
+        for i in range(n_peaks):
+            peaks[i, 0] = rows[i]
+            peaks[i, 1] = cols[i]
+            peaks[i, 2] = 0  # event_idx== 0 because 1 event at a time
+        comp = libpressio.PressioCompressor.from_config(
+            {
+                "compressor_id": "pressio",
+                "early_config": {
+                    "pressio": {
+                        "pressio:compressor": "roibin",
+                        "roibin": {
+                            "roibin:metric": "composite",
+                            "roibin:background": "binning",
+                            "roibin:roi": "fpzip",
+                            "background": {
+                                "binning:compressor": "pressio",
+                                "pressio": {"pressio:compressor": "sz3"},
+                            },
+                            "composite": {"composite:plugins": ["size", "time"]},
+                        },
+                    }
+                },
+                "compressor_config": {
+                    "pressio": {
+                        "roibin": {
+                            "roibin:roi_size": [8, 8, 0],
+                            "roibin:centers": peaks,
+                            "roibin:nthreads": 1,
+                            "roi": {"fpzip:prec": 0},
+                            "background": {
+                                "binning:shape": [2, 2, 1],
+                                "binning:nthreads": 4,
+                                "pressio": {"pressio:abs": 90.0},
+                            },
+                        }
+                    }
+                },
+                "name": "pressio",
+            }
+        )
+        #print(comp.get_config())
+        return comp
