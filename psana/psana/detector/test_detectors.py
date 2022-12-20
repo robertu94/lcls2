@@ -422,10 +422,10 @@ class libpressio_raw_1_2_3(DetectorImpl):
 
     @staticmethod
     def _make_compressor(n_peaks, rows, cols):
-        peaks = np.zeros((n_peaks, 3), np.uint16)
+        peaks = np.zeros((n_peaks, 3), np.uint64)
         for i in range(n_peaks):
-            peaks[i, 0] = rows[i]
-            peaks[i, 1] = cols[i]
+            peaks[i, 0] = cols[i]
+            peaks[i, 1] = rows[i]
             peaks[i, 2] = 0  # event_idx== 0 because 1 event at a time
         comp = libpressio.PressioCompressor.from_config(
             {
@@ -455,7 +455,7 @@ class libpressio_raw_1_2_3(DetectorImpl):
                             "background": {
                                 "binning:shape": [2, 2, 1],
                                 "binning:nthreads": 4,
-                                "pressio": {"pressio:abs": 90.0},
+                                "pressio": {"pressio:abs": 10.0},
                             },
                         }
                     }
